@@ -1,5 +1,4 @@
-#include <LiquidCrystal.h>
-#include <LCDKeypad.h>
+#include "LiquidCrystal.h"
 
 byte mySnake[8][8] = 
 {
@@ -83,12 +82,18 @@ boolean levelz[5][2][16] = {
 {false,false,false,false,true,false,false,true,false,false,false,true,false,false,false,true}}
 };
 
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+// RS, E, D4, D5, D6, D7
+LiquidCrystal lcd(2, 3, 4, 5, 6, 7);
 unsigned long time, timeNow; 
 int gameSpeed;
 boolean skip, gameOver, gameStarted;
 int olddir;
 int selectedLevel,levels;
+
+const int KEY_UP = 12;
+const int KEY_DOWN = 11;
+const int KEY_LEFT = 13;
+const int KEY_RIGHT = 10;
 
 int adc_key_val[5] ={50, 200, 400, 600, 800 };
 int NUM_KEYS = 5;
@@ -109,7 +114,7 @@ struct partdef
 typedef partdef part;
 
 part *head, *tail;
-int i,j,collected;
+int i,j,collected,score;
 long pc,pr;
 
 void drawMatrix()
@@ -148,7 +153,7 @@ void drawMatrix()
         else lcd.write(254);
       }
     }
-  } 
+  }
   }
 }
 
@@ -174,7 +179,7 @@ void gameOverFunction()
   lcd.print("Game Over!");
   lcd.setCursor(4,1);
   lcd.print("Score: ");
-  lcd.print(collected);
+  lcd.print(score);
   delay(1000);
 }
 
@@ -244,7 +249,8 @@ void moveHead()
   if (head->row == pr && head->column == pc) // point pickup check
   {
     collected++;
-    if (gameSpeed < 25) gameSpeed+=3;
+    score++;
+    if (gameSpeed < 30) gameSpeed+=3;
     newPoint();
   }
   }
@@ -300,15 +306,13 @@ void createSnake(int n) // n = size of snake
   }
 }
 
-void startF()
+void newLevel()
 {
-  gameOver = false;
-  gameStarted = false;
-  selectedLevel = 1;
-  
   lcd.clear();
+
   lcd.setCursor(0,0);
-  lcd.print("Select level: 1");
+  lcd.print("Level ");
+  
   for(i=0;i<8;i++)
   {
     lcd.createChar(i,mySnake[i]);
@@ -316,13 +320,33 @@ void startF()
     lcd.write(byte(i));
   }
   collected = 0;
-  gameSpeed = 8;
+  gameSpeed = 10;
   createSnake(3);
   time = 0;
 }
+
+void startF()
+{
+  gameOver = false;
+  gameStarted = false;
+  selectedLevel = 1;
+  score = 0;
+
+  newLevel();
+}
 void setup()
 {
-  levels = 5; //number of lvls
+  pinMode(KEY_UP, INPUT);	// input buttons
+  pinMode(KEY_DOWN, INPUT);
+  pinMode(KEY_RIGHT, INPUT);
+  pinMode(KEY_LEFT, INPUT);
+  
+  pinMode(9, OUTPUT);
+
+  Serial.begin(9600);
+  randomSeed(analogRead(0));
+
+  levels = 4; //number of lvls
   lcd.begin(16, 2);
   startF();
 }
@@ -331,50 +355,47 @@ void loop()
 {
   if (!gameOver && !gameStarted)
   {
-   adc_key_in = analogRead(0);    // read the value from the sensor 
-   key = get_key(adc_key_in);  // convert into key press
+   lcd.setCursor(6,0);
+   lcd.print(selectedLevel);
+   key = get_key();  // convert into key press
    if (key != oldkey)   // if keypress is detected
    {
      delay(50);  // wait for debounce time
-     adc_key_in = analogRead(0);    // read the value from the sensor 
-     key = get_key(adc_key_in);    // convert into key press
+     key = get_key();    // convert into key press
      if (key != oldkey)    
-     {   
+     {  
        oldkey = key;
        if (key >=0)
        {
          olddir = head->dir;
-         if (key==1 && selectedLevel<levels) selectedLevel++;
-         if (key==2 && selectedLevel>1) selectedLevel--;
-         if (key==4) 
-         {
-           lcd.clear();
-           selectedLevel--;
-           newPoint();
-           gameStarted = true;
-         }
-         else
-         {
-           lcd.setCursor(14,0);
-           lcd.print(selectedLevel);
-         }
-       }
+
+         lcd.clear();
+         selectedLevel--;
+         newPoint();
+         gameStarted = true;
+        }
      }
    }
   }
   if (!gameOver && gameStarted)
   {
+   Serial.println(collected);
+   if(collected == 10) {
+     selectedLevel += 2;
+     gameStarted = false;
+     newLevel();
+     goto lab;
+   }
+   
    skip = false; //skip the second moveAll() function call if the first was made
    
-   adc_key_in = analogRead(0);    // read the value from the sensor 
-   key = get_key(adc_key_in);  // convert into key press
+   key = get_key();  // convert into key press
    if (key != oldkey)   // if keypress is detected
    {
      delay(50);  // wait for debounce time
-     adc_key_in = analogRead(0);    // read the value from the sensor 
-     key = get_key(adc_key_in);    // convert into key press
+     key = get_key();    // convert into key press
      if (key != oldkey)    
-     {   
+     {  
        oldkey = key;
        if (key >=0)
        {
@@ -394,6 +415,7 @@ void loop()
        }
      }
    }
+   
    if (!skip)
    {
      timeNow = millis();
@@ -404,19 +426,17 @@ void loop()
        time = millis();
      }
    }
+lab:;
   }
   if(gameOver)
-  {
-    
-   adc_key_in = analogRead(0);    // read the value from the sensor 
-   key = get_key(adc_key_in);  // convert into key press
+  { 
+   key = get_key();  // convert into key press
    if (key != oldkey)   // if keypress is detected
    {
      delay(50);  // wait for debounce time
-     adc_key_in = analogRead(0);    // read the value from the sensor 
-     key = get_key(adc_key_in);    // convert into key press
+     key = get_key();    // convert into key press
      if (key != oldkey)    
-     {   
+     {  
        oldkey = key;
        if (key >=0)
        {
@@ -424,13 +444,21 @@ void loop()
        }
      }
    }
-   
   }
 }
 
-int get_key(unsigned int input)
+int get_key()
 {
-    int k;
+    //int adc_key_val[5] ={50, 200, 400, 600, 800 };
+    int key;
+
+    if (oldkey != 1 && digitalRead(KEY_UP) == HIGH) return 1;
+    else if (oldkey != 2 && digitalRead(KEY_DOWN) == HIGH) return 2;
+    else if (oldkey != 3 && digitalRead(KEY_LEFT) == HIGH) return 3;
+    else if (oldkey != 0 && digitalRead(KEY_RIGHT) == HIGH) return 0;
+    else return -1;
+
+    /*int k;
     for (k = 0; k < NUM_KEYS; k++)
     {
       if (input < adc_key_val[k])
@@ -439,7 +467,7 @@ int get_key(unsigned int input)
       }
     }   
     if (k >= NUM_KEYS)k = -1;  // No valid key pressed
-    return k;
+    return k;*/
 }
 
 /*
