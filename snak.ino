@@ -1,5 +1,9 @@
 #include "LiquidCrystal.h"
 
+const int MAX_COLLECTED = 10; // Collected to pass the level
+const int MAX_SPEED = 25;
+const int INIT_SPEED = 10;
+
 byte mySnake[8][8] = 
 {
 { B00000,
@@ -144,7 +148,7 @@ void drawMatrix()
         lcd.createChar(cc, myChar);
         lcd.setCursor(c,r);
         lcd.write(byte(cc));
-	cc++;
+  cc++;
       }
       else 
       {
@@ -168,6 +172,32 @@ void freeList()
     free(q);
   }
   head = tail = NULL;
+}
+
+void winFunction()
+{
+  lcd.clear();
+  
+  for(int i=0; i<5; i++) {
+      lcd.setCursor(4,0);
+      lcd.print("You Win!");
+      delay(500);
+      lcd.clear();
+      delay(300);
+  }
+  
+  lcd.setCursor(16,0);
+  lcd.write("Password:");
+  for(int i=0; i < 16; i++) {
+    lcd.scrollDisplayLeft();
+    delay(150); 
+  }
+  delay(1000);
+
+  lcd.clear();
+  lcd.write("TEST4");
+
+  while(true);
 }
 
 void gameOverFunction()
@@ -250,7 +280,7 @@ void moveHead()
   {
     collected++;
     score++;
-    if (gameSpeed < 30) gameSpeed+=3;
+    if (gameSpeed < MAX_SPEED) gameSpeed+=3;
     newPoint();
   }
   }
@@ -276,7 +306,7 @@ void createSnake(int n) // n = size of snake
   for (i=0;i<16;i++)
     for (j=0;j<80;j++)
       x[i][j] = false;
-	  
+    
   part *p, *q;
   tail = (part*)malloc(sizeof(part));
   tail->row = 7;
@@ -320,7 +350,7 @@ void newLevel()
     lcd.write(byte(i));
   }
   collected = 0;
-  gameSpeed = 10;
+  gameSpeed = INIT_SPEED;
   createSnake(3);
   time = 0;
 }
@@ -329,21 +359,18 @@ void startF()
 {
   gameOver = false;
   gameStarted = false;
-  selectedLevel = 1;
+  selectedLevel = 0;
   score = 0;
 
   newLevel();
 }
 void setup()
 {
-  pinMode(KEY_UP, INPUT);	// input buttons
+  pinMode(KEY_UP, INPUT); // input buttons
   pinMode(KEY_DOWN, INPUT);
   pinMode(KEY_RIGHT, INPUT);
   pinMode(KEY_LEFT, INPUT);
   
-  pinMode(9, OUTPUT);
-
-  Serial.begin(9600);
   randomSeed(analogRead(0));
 
   levels = 4; //number of lvls
@@ -356,7 +383,7 @@ void loop()
   if (!gameOver && !gameStarted)
   {
    lcd.setCursor(6,0);
-   lcd.print(selectedLevel);
+   lcd.print(selectedLevel+1);
    key = get_key();  // convert into key press
    if (key != oldkey)   // if keypress is detected
    {
@@ -370,21 +397,25 @@ void loop()
          olddir = head->dir;
 
          lcd.clear();
-         selectedLevel--;
          newPoint();
          gameStarted = true;
-        }
+       }
      }
    }
   }
   if (!gameOver && gameStarted)
   {
-   Serial.println(collected);
-   if(collected == 10) {
-     selectedLevel += 2;
+   //Serial.println(collected);
+   if(collected == MAX_COLLECTED) {
+    if(selectedLevel < levels-1) {
+     selectedLevel += 1;
+     freeList();
      gameStarted = false;
      newLevel();
      goto lab;
+    } else {
+      winFunction();  
+    }
    }
    
    skip = false; //skip the second moveAll() function call if the first was made
@@ -457,17 +488,6 @@ int get_key()
     else if (oldkey != 3 && digitalRead(KEY_LEFT) == HIGH) return 3;
     else if (oldkey != 0 && digitalRead(KEY_RIGHT) == HIGH) return 0;
     else return -1;
-
-    /*int k;
-    for (k = 0; k < NUM_KEYS; k++)
-    {
-      if (input < adc_key_val[k])
-      {
-        return k;
-      }
-    }   
-    if (k >= NUM_KEYS)k = -1;  // No valid key pressed
-    return k;*/
 }
 
 /*
@@ -481,7 +501,6 @@ void printChar()
     Serial.println(myChar[i]);
   }
 }
-
 void printMatrix()
 {
   Serial.println();
